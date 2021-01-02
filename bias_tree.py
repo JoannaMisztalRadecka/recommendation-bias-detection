@@ -120,3 +120,26 @@ class BiasDetectionTree:
 
     def _plot_metric_nodes_distribution(self, leaf_metrics: pd.DataFrame, dist_type: str = 'ecdf') -> None:
         sns.displot(data=leaf_metrics, x=self.metric_col, hue=self.__NODE_RULES__COL, kind=dist_type)
+
+
+def residual(prediction, rating):
+    return rating - prediction
+
+
+def absolute_error(prediction, rating):
+    return abs(rating - prediction)
+
+
+def squared_error(prediction, rating):
+    return (rating - prediction) ** 2
+
+
+def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
+                         min_child_node_size=1000, alpha=0.01, max_depth=3):
+    ratings['pred'] = model.predict(ratings[['user_id', 'movie_id']])
+    ratings[metric_name] = eval(metric_name)(ratings['rating_scaled'].values, ratings['pred'].values)
+    bias_detection_tree = BiasDetectionTree(min_child_node_size=min_child_node_size,
+                                            alpha=alpha, max_depth=max_depth, metric_col=metric_name)
+    bias_detection_tree.analyze_bias(attributes=attributes, metric_with_metadata=ratings)
+
+    return bias_detection_tree
