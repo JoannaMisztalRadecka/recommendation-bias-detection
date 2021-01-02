@@ -76,7 +76,7 @@ class MovieLens100KData:
 
     @property
     def attributes_continuous(self):
-        return ['age', 'year', 'user activity', 'item popularity']
+        return ['age', 'year', ]#'user activity', 'item popularity']
 
     def _bucketize_continuous_attributes(self, ratings_with_metadata: pd.DataFrame) -> pd.DataFrame:
         for attr in self.attributes_continuous:

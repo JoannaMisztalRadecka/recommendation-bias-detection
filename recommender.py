@@ -38,8 +38,8 @@ class MFRecommender(keras.Model):
 
 def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, num_users: int, num_items: int,
                              batch_size: int = 64, epochs: int = 5, embedding_size: int = 20,
-                             lr: float = 0.001) -> MFRecommender:
-    model = MFRecommender(num_users, num_items, embedding_size)
+                             lr: float = 0.001, regularization_coef:float=1e-6) -> MFRecommender:
+    model = MFRecommender(num_users, num_items, embedding_size, regularization_coef=regularization_coef)
     model.compile(
         loss=tf.keras.losses.BinaryCrossentropy(), optimizer=keras.optimizers.Adam(lr=lr)
     )
