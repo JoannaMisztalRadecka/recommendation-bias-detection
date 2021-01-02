@@ -13,9 +13,6 @@ class BiasDetectionTree:
     VAR_TYPE__CONTINUOUS = 'continuous'
     VAR_TYPE__CATEGORICAL = 'categorical'
     __NODE_RULES__COL = 'node_rules'
-    __BUCKET__LOW = 'low'
-    __BUCKET__MEDIUM = 'medium'
-    __BUCKET__HIGH = 'high'
 
     def __init__(self, metric_col='error', metric_type=VAR_TYPE__CONTINUOUS,
                  min_child_node_size: int = 1000,
@@ -63,19 +60,7 @@ class BiasDetectionTree:
         return self.leaf_metrics.iloc[0]['mean']
 
     def _build_bias_tree(self, attributes: dict, metric_with_metadata: pd.DataFrame) -> None:
-        tree_attributes = {}
-        for attr in attributes:
-            if attributes[attr] == self.VAR_TYPE__CONTINUOUS:
-                var_name = f'{attr}_bucketized'
-                metric_with_metadata[var_name] = pd.qcut(metric_with_metadata[attr], 3,
-                                                         labels=[self.__BUCKET__LOW,
-                                                                 self.__BUCKET__MEDIUM,
-                                                                 self.__BUCKET__HIGH])
-                tree_attributes[var_name] = 'nominal'
-            elif attributes[attr] == self.VAR_TYPE__CATEGORICAL:
-                tree_attributes[attr] = 'nominal'
-
-        self.bias_tree = Tree.from_pandas_df(metric_with_metadata, tree_attributes, self.metric_col,
+        self.bias_tree = Tree.from_pandas_df(metric_with_metadata, attributes, self.metric_col,
                                              min_child_node_size=self.min_child_node_size,
                                              dep_variable_type=self.metric_type,
                                              max_depth=self.max_depth, alpha_merge=self.alpha)
@@ -89,7 +74,7 @@ class BiasDetectionTree:
             else:
                 variable = "root"
             tree_structure.update_node(node.identifier,
-                                       tag="{}={}: {}".format(variable, choices, round(node.tag.members['mean'], 2)))
+                                       tag="{}={}: {}".format(variable, choices, round(node.tag.members['mean'], 3)))
         tree_structure.show()
 
     def _get_nodes_metrics(self, metric_with_metadata: pd.DataFrame) -> pd.DataFrame:
@@ -135,8 +120,8 @@ def squared_error(prediction, rating):
 
 
 def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
-                         min_child_node_size=1000, alpha=0.01, max_depth=3):
-    ratings['pred'] = model.predict(ratings[['user_id', 'movie_id']])
+                                   min_child_node_size=1000, alpha=0.01, max_depth=3):
+    ratings['pred'] = model.predict(ratings[['user_id', 'item_id']])
     ratings[metric_name] = eval(metric_name)(ratings['rating_scaled'].values, ratings['pred'].values)
     bias_detection_tree = BiasDetectionTree(min_child_node_size=min_child_node_size,
                                             alpha=alpha, max_depth=max_depth, metric_col=metric_name)
