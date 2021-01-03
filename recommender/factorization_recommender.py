@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 
-class MFRecommender(keras.Model):
+class FactorizationRecommender(keras.Model):
     def __init__(self, num_users: int, num_items: int, embedding_size: int, regularization_coef: float = 1e-6,
                  **kwargs):
         super().__init__(**kwargs)
@@ -33,15 +33,15 @@ class MFRecommender(keras.Model):
         item_bias = self.item_bias(inputs[:, 1])
         dot_user_item = tf.tensordot(user_vector, item_vector, 2)
         x = dot_user_item + user_bias + item_bias
-        return tf.nn.sigmoid(x)
+        return x #tf.nn.sigmoid(x)
 
 
 def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, num_users: int, num_items: int,
                              batch_size: int = 64, epochs: int = 5, embedding_size: int = 20,
-                             lr: float = 0.001, regularization_coef:float=1e-6) -> MFRecommender:
-    model = MFRecommender(num_users, num_items, embedding_size, regularization_coef=regularization_coef)
+                             lr: float = 0.001, regularization_coef:float=1e-6) -> FactorizationRecommender:
+    model = FactorizationRecommender(num_users, num_items, embedding_size, regularization_coef=regularization_coef)
     model.compile(
-        loss=tf.keras.losses.BinaryCrossentropy(), optimizer=keras.optimizers.Adam(lr=lr)
+        loss=tf.keras.losses.MeanSquaredError(), optimizer=keras.optimizers.Adam(lr=lr)
     )
     retrain_recommendation_model(train_data=train_data, val_data=val_data, model=model,
                                  batch_size=batch_size, epochs=epochs)
@@ -50,18 +50,18 @@ def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, n
 
 
 def retrain_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame,
-                                 model: MFRecommender, retrain_embeddings: bool = False,
-                                 batch_size: int = 64, epochs: int = 5) -> MFRecommender:
+                                 model: FactorizationRecommender, retrain_embeddings: bool = False,
+                                 batch_size: int = 64, epochs: int = 5) -> FactorizationRecommender:
     model.user_embedding.trainable = retrain_embeddings
     model.item_embedding.trainable = retrain_embeddings
     history = model.fit(
         x=train_data[["user_id", "item_id"]].values,
-        y=train_data["rating_scaled"].values,
+        y=train_data["rating"].values,
         batch_size=batch_size,
         epochs=epochs,
         verbose=1,
         validation_data=(val_data[["user_id", "item_id"]].values,
-                         val_data["rating_scaled"].values),
+                         val_data["rating"].values),
     )
 
     plt.plot(history.history["loss"])

@@ -1,6 +1,5 @@
 import os
 
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -25,7 +24,7 @@ class MovieLens100KData:
         self._num_users = 0
         self._num_items = 0
 
-    def get_data_splits_for_training(self) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    def get_data_splits_for_training(self, use_val_set: bool = True) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
         """
         Prepares MovieLens data for training.
         :param ratings: pandas DataFrame with ratings
@@ -40,7 +39,7 @@ class MovieLens100KData:
         ratings["item_id"] = ratings["item"].map(item_ids)
         self._num_users = len(user_ids)
         self._num_items = len(item_ids)
-        return self._get_train_test_validation_data(ratings)
+        return self._get_train_test_validation_data(ratings, use_val_set)
 
     def get_ratings_with_metadata(self) -> pd.DataFrame:
         user_features = self._get_user_features()
@@ -76,7 +75,7 @@ class MovieLens100KData:
 
     @property
     def attributes_continuous(self):
-        return ['age', 'year', ]#'user activity', 'item popularity']
+        return ['age', 'year', 'user activity', 'item popularity']
 
     def _bucketize_continuous_attributes(self, ratings_with_metadata: pd.DataFrame) -> pd.DataFrame:
         for attr in self.attributes_continuous:
@@ -88,18 +87,19 @@ class MovieLens100KData:
         return ratings_with_metadata
 
     @staticmethod
-    def _get_train_test_validation_data(ratings: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    def _get_train_test_validation_data(ratings: pd.DataFrame, use_val_set: bool = True) -> (
+    pd.DataFrame, pd.DataFrame, pd.DataFrame):
         X_train, X_test = train_test_split(ratings, test_size=0.2, random_state=1)
-        X_train, X_val = train_test_split(X_train, test_size=0.25, random_state=1)
-        return X_train, X_val, X_test
+        if use_val_set:
+            X_train, X_val = train_test_split(X_train, test_size=0.25, random_state=1)
+            return X_train, X_val, X_test
+        else:
+            return X_train, X_test
 
     def _get_ratings(self) -> pd.DataFrame:
         ratings = pd.read_csv(self._ratings_file, header=None, sep='\t')
         ratings.columns = ['user', 'item', 'rating', 'timestamp']
-        min_rating = min(ratings["rating"])
-        max_rating = max(ratings["rating"])
-        ratings['rating_scaled'] = ratings["rating"].astype(np.float32) \
-            .apply(lambda x: (x - min_rating) / (max_rating - min_rating))
+
         return ratings
 
     def _get_item_features(self):
