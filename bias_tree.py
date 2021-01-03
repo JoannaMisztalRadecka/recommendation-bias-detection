@@ -122,7 +122,7 @@ def squared_error(prediction, rating):
 def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
                                    min_child_node_size=1000, alpha=0.01, max_depth=3):
     ratings['pred'] = model.predict(ratings[['user_id', 'item_id']])
-    ratings[metric_name] = eval(metric_name)(ratings['rating_scaled'].values, ratings['pred'].values)
+    ratings[metric_name] = eval(metric_name)(ratings['rating'].values, ratings['pred'].values)
     bias_detection_tree = BiasDetectionTree(min_child_node_size=min_child_node_size,
                                             alpha=alpha, max_depth=max_depth, metric_col=metric_name)
     bias_detection_tree.analyze_bias(attributes=attributes, metric_with_metadata=ratings)
