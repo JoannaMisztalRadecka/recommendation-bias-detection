@@ -4,7 +4,6 @@ import tensorflow as tf
 from kerastuner import HyperModel, RandomSearch
 from tensorflow import keras
 
-
 class FactorizationRecommender(keras.Model):
     def __init__(self, num_users: int, num_items: int, embedding_size: int, regularization_coef: float = 1e-6,
                  **kwargs):
@@ -46,16 +45,18 @@ class FactorizationRecommenderHyperParamSearch(HyperModel):
     def build(self, hyperparam_tuner):
         model = FactorizationRecommender(self.num_users, self.num_items,
                                          embedding_size=hyperparam_tuner.Int('embedding_size',
-                                                                             min_value=32,
-                                                                             max_value=512,
-                                                                             step=32),
+                                                                             min_value=16,
+                                                                             max_value=64,
+                                                                             step=16),
                                          regularization_coef=hyperparam_tuner.Choice('regularization_coef',
                                                                                      values=[1e-2, 1e-4, 1e-6]))
+
         model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
             optimizer=keras.optimizers.Adam(lr=hyperparam_tuner.Choice('learning_rate',
                                                                        values=[1e-2, 1e-3, 1e-4])
                                             ))
+        return model
 
 
 def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, num_users: int, num_items: int,
@@ -74,32 +75,34 @@ def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, n
 
 def retrain_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame,
                                  model: FactorizationRecommender, retrain_embeddings: bool = False,
-                                 batch_size: int = 64, epochs: int = 5) -> FactorizationRecommender:
+                                 batch_size: int = 64, epochs: int = 5, plot_history:bool=True) -> FactorizationRecommender:
     model.user_embedding.trainable = retrain_embeddings
     model.item_embedding.trainable = retrain_embeddings
+    callbacks = [
+        tf.keras.callbacks.EarlyStopping(patience=2),]
     history = model.fit(
         x=train_data[["user_id", "item_id"]].values,
         y=train_data["rating"].values,
         batch_size=batch_size,
         epochs=epochs,
-        verbose=1,
         validation_data=(val_data[["user_id", "item_id"]].values,
                          val_data["rating"].values),
+        callbacks=callbacks
     )
-
-    plt.plot(history.history["loss"])
-    plt.plot(history.history["val_loss"])
-    plt.title("model loss")
-    plt.ylabel("loss")
-    plt.xlabel("epoch")
-    plt.legend(["train", "validation"], loc="upper left")
-    plt.show()
+    if plot_history:
+        plt.plot(history.history["loss"])
+        plt.plot(history.history["val_loss"])
+        plt.title("model loss")
+        plt.ylabel("loss")
+        plt.xlabel("epoch")
+        plt.legend(["train", "validation"], loc="upper left")
+        plt.show()
 
     return model
 
 
 def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataFrame,num_users: int, num_items: int,
-                                    batch_size: int = 64, epochs: int = 5) -> FactorizationRecommender:
+                                    batch_size: int = 64, epochs: int = 5) -> FactorizationRecommenderHyperParamSearch:
     model = FactorizationRecommenderHyperParamSearch(num_users, num_items)
     tuner = RandomSearch(
         model,
@@ -107,7 +110,8 @@ def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataF
         max_trials=20,
         directory='hyperparams',
         project_name='recommeder-debias')
-
+    callbacks = [
+        tf.keras.callbacks.EarlyStopping(patience=2), ]
     history = tuner.search(
         x=train_data[["user_id", "item_id"]].values,
         y=train_data["rating"].values,
@@ -116,6 +120,7 @@ def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataF
         verbose=1,
         validation_data=(val_data[["user_id", "item_id"]].values,
                          val_data["rating"].values),
+        callbacks=callbacks
     )
 
     plt.plot(history.history["loss"])

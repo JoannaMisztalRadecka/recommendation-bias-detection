@@ -38,9 +38,10 @@ class BiasDetectionTree:
 
         return self.leaf_metrics
 
-    def get_filtered_df(self, node_rules: str, metadata_df: pd.DataFrame):
+    @staticmethod
+    def get_filtered_df(node_rules: str, metadata_df: pd.DataFrame):
         rules_dict = json.loads(node_rules)
-        rules_metadata_df = self._filter_df_rows_for_rules(rules_dict, metadata_df)
+        rules_metadata_df = BiasDetectionTree._filter_df_rows_for_rules(rules_dict, metadata_df)
         return rules_metadata_df
 
     @property
@@ -96,9 +97,10 @@ class BiasDetectionTree:
             node_rules[variable] = choices
         return node_rules
 
-    def _filter_df_rows_for_rules(self, node_rules: dict, metadata_df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _filter_df_rows_for_rules( node_rules: dict, metadata_df: pd.DataFrame) -> pd.DataFrame:
         rule_metadata = metadata_df.copy(deep=True)
-        rule_metadata[self.__NODE_RULES__COL] = json.dumps(node_rules)
+        rule_metadata[BiasDetectionTree.__NODE_RULES__COL] = json.dumps(node_rules)
         for col in node_rules:
             rule_metadata = rule_metadata[rule_metadata[col].isin(node_rules[col])]
         return rule_metadata
@@ -128,3 +130,9 @@ def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
     bias_detection_tree.analyze_bias(attributes=attributes, metric_with_metadata=ratings)
 
     return bias_detection_tree
+
+
+def evaluate_model(model, ratings: pd.DataFrame, metric_name: str) -> pd.Series:
+    ratings['pred'] = model.predict(ratings[['user_id', 'item_id']])
+    metric = eval(metric_name)(ratings['rating'], ratings['pred'])
+    return metric
