@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import tensorflow as tf
+from kerastuner import HyperModel, RandomSearch
 from tensorflow import keras
 
 
@@ -33,15 +34,37 @@ class FactorizationRecommender(keras.Model):
         item_bias = self.item_bias(inputs[:, 1])
         dot_user_item = tf.tensordot(user_vector, item_vector, 2)
         x = dot_user_item + user_bias + item_bias
-        return x #tf.nn.sigmoid(x)
+        return x  # tf.nn.sigmoid(x)
+
+
+class FactorizationRecommenderHyperParamSearch(HyperModel):
+    def __init__(self, num_users: int, num_items: int):
+        super().__init__()
+        self.num_users = num_users
+        self.num_items = num_items
+
+    def build(self, hyperparam_tuner):
+        model = FactorizationRecommender(self.num_users, self.num_items,
+                                         embedding_size=hyperparam_tuner.Int('embedding_size',
+                                                                             min_value=32,
+                                                                             max_value=512,
+                                                                             step=32),
+                                         regularization_coef=hyperparam_tuner.Choice('regularization_coef',
+                                                                                     values=[1e-2, 1e-4, 1e-6]))
+        model.compile(
+            loss=tf.keras.losses.MeanSquaredError(),
+            optimizer=keras.optimizers.Adam(lr=hyperparam_tuner.Choice('learning_rate',
+                                                                       values=[1e-2, 1e-3, 1e-4])
+                                            ))
 
 
 def fit_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFrame, num_users: int, num_items: int,
                              batch_size: int = 64, epochs: int = 5, embedding_size: int = 20,
-                             lr: float = 0.001, regularization_coef:float=1e-6) -> FactorizationRecommender:
+                             lr: float = 0.001, regularization_coef: float = 1e-6) -> FactorizationRecommender:
     model = FactorizationRecommender(num_users, num_items, embedding_size, regularization_coef=regularization_coef)
     model.compile(
-        loss=tf.keras.losses.MeanSquaredError(), optimizer=keras.optimizers.Adam(lr=lr)
+        loss=tf.keras.losses.MeanSquaredError(),
+        optimizer=keras.optimizers.Adam(lr=lr)
     )
     retrain_recommendation_model(train_data=train_data, val_data=val_data, model=model,
                                  batch_size=batch_size, epochs=epochs)
@@ -55,6 +78,37 @@ def retrain_recommendation_model(train_data: pd.DataFrame, val_data: pd.DataFram
     model.user_embedding.trainable = retrain_embeddings
     model.item_embedding.trainable = retrain_embeddings
     history = model.fit(
+        x=train_data[["user_id", "item_id"]].values,
+        y=train_data["rating"].values,
+        batch_size=batch_size,
+        epochs=epochs,
+        verbose=1,
+        validation_data=(val_data[["user_id", "item_id"]].values,
+                         val_data["rating"].values),
+    )
+
+    plt.plot(history.history["loss"])
+    plt.plot(history.history["val_loss"])
+    plt.title("model loss")
+    plt.ylabel("loss")
+    plt.xlabel("epoch")
+    plt.legend(["train", "validation"], loc="upper left")
+    plt.show()
+
+    return model
+
+
+def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataFrame,num_users: int, num_items: int,
+                                    batch_size: int = 64, epochs: int = 5) -> FactorizationRecommender:
+    model = FactorizationRecommenderHyperParamSearch(num_users, num_items)
+    tuner = RandomSearch(
+        model,
+        objective='val_loss',
+        max_trials=20,
+        directory='hyperparams',
+        project_name='recommeder-debias')
+
+    history = tuner.search(
         x=train_data[["user_id", "item_id"]].values,
         y=train_data["rating"].values,
         batch_size=batch_size,
