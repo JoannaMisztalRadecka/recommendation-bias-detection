@@ -33,7 +33,7 @@ class FactorizationRecommender(keras.Model):
         item_bias = self.item_bias(inputs[:, 1])
         dot_user_item = tf.tensordot(user_vector, item_vector, 2)
         x = dot_user_item + user_bias + item_bias
-        return x  # tf.nn.sigmoid(x)
+        return x
 
 
 class FactorizationRecommenderHyperParamSearch(HyperModel):
@@ -45,16 +45,16 @@ class FactorizationRecommenderHyperParamSearch(HyperModel):
     def build(self, hyperparam_tuner):
         model = FactorizationRecommender(self.num_users, self.num_items,
                                          embedding_size=hyperparam_tuner.Int('embedding_size',
-                                                                             min_value=16,
-                                                                             max_value=64,
-                                                                             step=16),
+                                                                             min_value=8,
+                                                                             max_value=32,
+                                                                             step=8),
                                          regularization_coef=hyperparam_tuner.Choice('regularization_coef',
-                                                                                     values=[1e-2, 1e-4, 1e-6]))
+                                                                                     values=[1e-4, 1e-6]))
 
         model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
             optimizer=keras.optimizers.Adam(lr=hyperparam_tuner.Choice('learning_rate',
-                                                                       values=[1e-2, 1e-3, 1e-4])
+                                                                       values=[1e-3, 1e-4])
                                             ))
         return model
 
@@ -107,12 +107,12 @@ def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataF
     tuner = RandomSearch(
         model,
         objective='val_loss',
-        max_trials=20,
+        max_trials=10,
         directory='hyperparams',
         project_name='recommeder-debias')
     callbacks = [
         tf.keras.callbacks.EarlyStopping(patience=2), ]
-    history = tuner.search(
+    tuner.search(
         x=train_data[["user_id", "item_id"]].values,
         y=train_data["rating"].values,
         batch_size=batch_size,
@@ -122,13 +122,9 @@ def tune_recommendation_hyperparams(train_data: pd.DataFrame, val_data: pd.DataF
                          val_data["rating"].values),
         callbacks=callbacks
     )
-
-    plt.plot(history.history["loss"])
-    plt.plot(history.history["val_loss"])
-    plt.title("model loss")
-    plt.ylabel("loss")
-    plt.xlabel("epoch")
-    plt.legend(["train", "validation"], loc="upper left")
-    plt.show()
-
+    best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+    model = tuner.hypermodel.build(best_hps)
+    retrain_recommendation_model(train_data=train_data, val_data=val_data, model=model,
+                                 batch_size=batch_size, epochs=epochs)
+    print(((pd.DataFrame(model.predict(train_data[["user_id", "item_id"]]))[0]-train_data["rating"])**2).mean())
     return model
