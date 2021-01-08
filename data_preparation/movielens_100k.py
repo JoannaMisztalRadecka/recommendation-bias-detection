@@ -21,8 +21,8 @@ class MovieLens100KData:
         self._item_file = os.path.join(data_path, 'u.item')
         self._user_file = os.path.join(data_path, 'u.user')
         self._genres_file = os.path.join(data_path, 'u.genre')
-        self._num_users = 0
-        self._num_items = 0
+        self._user_ids = []
+        self._item_ids = []
 
     def get_data_splits_for_training(self, use_val_set: bool = True) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
         """
@@ -31,14 +31,13 @@ class MovieLens100KData:
         :return: train, validation, test sets (60/20/20)
         """
         ratings = self.get_ratings_with_metadata()
-        user_ids = ratings["user"].unique().tolist()
-        user_ids = {x: i for i, x in enumerate(user_ids)}
-        item_ids = ratings["item"].unique().tolist()
-        item_ids = {x: i for i, x in enumerate(item_ids)}
+        self._user_ids = ratings["user"].unique().tolist()
+        user_ids = {x: i for i, x in enumerate(self._user_ids)}
+        self._item_ids = ratings["item"].unique().tolist()
+        item_ids = {x: i for i, x in enumerate(self._item_ids)}
         ratings["user_id"] = ratings["user"].map(user_ids)
         ratings["item_id"] = ratings["item"].map(item_ids)
-        self._num_users = len(user_ids)
-        self._num_items = len(item_ids)
+
         return self._get_train_test_validation_data(ratings, use_val_set)
 
     def get_ratings_with_metadata(self) -> pd.DataFrame:
@@ -53,12 +52,12 @@ class MovieLens100KData:
         return ratings_with_metadata
 
     @property
-    def num_users(self):
-        return self._num_users
+    def user_ids(self):
+        return self._user_ids
 
     @property
-    def num_items(self):
-        return self._num_items
+    def item_ids(self):
+        return self._item_ids
 
     @property
     def attributes_dict(self):
@@ -88,7 +87,7 @@ class MovieLens100KData:
 
     @staticmethod
     def _get_train_test_validation_data(ratings: pd.DataFrame, use_val_set: bool = True) -> (
-    pd.DataFrame, pd.DataFrame, pd.DataFrame):
+            pd.DataFrame, pd.DataFrame, pd.DataFrame):
         X_train, X_test = train_test_split(ratings, test_size=0.2, random_state=1)
         if use_val_set:
             X_train, X_val = train_test_split(X_train, test_size=0.25, random_state=1)
