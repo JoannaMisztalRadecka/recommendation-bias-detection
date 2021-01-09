@@ -2,6 +2,7 @@ import json
 
 import pandas as pd
 import seaborn as sns
+from matplotlib import pyplot as plt
 from CHAID import Tree
 
 
@@ -107,6 +108,7 @@ class BiasDetectionTree:
 
     def _plot_metric_nodes_distribution(self, leaf_metrics: pd.DataFrame, dist_type: str = 'ecdf') -> None:
         sns.displot(data=leaf_metrics, x=self.metric_col, hue=self.__NODE_RULES__COL, kind=dist_type)
+        plt.show()
 
 
 def residual(prediction, rating):
@@ -122,9 +124,10 @@ def squared_error(prediction, rating):
 
 
 def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
-                                   min_child_node_size=1000, alpha=0.01, max_depth=3):
-    ratings['pred'] = model.predict(ratings[['user_id', 'item_id']])
-    ratings[metric_name] = eval(metric_name)(ratings['rating'].values, ratings['pred'].values)
+                                   min_child_node_size=1000, alpha=0.01, max_depth=3, user_col='user_id',
+                                   item_col='item_id', rating_col='rating'):
+    ratings['pred'] = model.predict(ratings[[user_col, item_col]])
+    ratings[metric_name] = eval(metric_name)(ratings[rating_col].values, ratings['pred'].values)
     bias_detection_tree = BiasDetectionTree(min_child_node_size=min_child_node_size,
                                             alpha=alpha, max_depth=max_depth, metric_col=metric_name)
     bias_detection_tree.analyze_bias(attributes=attributes, metric_with_metadata=ratings)
@@ -132,7 +135,8 @@ def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
     return bias_detection_tree
 
 
-def evaluate_model(model, ratings: pd.DataFrame, metric_name: str) -> pd.Series:
-    ratings['pred'] = model.predict(ratings[['user_id', 'item_id']])
-    metric = eval(metric_name)(ratings['rating'], ratings['pred'])
+def evaluate_model(model, ratings: pd.DataFrame, metric_name: str, user_col='user_id',
+                                   item_col='item_id', rating_col='rating') -> pd.Series:
+    ratings['pred'] = model.predict(ratings[[user_col, item_col]])
+    metric = eval(metric_name)(ratings[rating_col], ratings['pred'])
     return metric
