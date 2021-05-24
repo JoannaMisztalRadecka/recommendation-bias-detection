@@ -3,7 +3,7 @@ import surprise
 from sklearn.model_selection import ParameterGrid
 from surprise.prediction_algorithms import AlgoBase
 from surprise.trainset import Trainset
-
+from surprise.dataset import DatasetAutoFolds
 
 class SurpriseRecommender:
     def __init__(self, model: AlgoBase, user_col='user_id',
@@ -32,6 +32,19 @@ def random_search_fit_surprise_recommendation_model(ratings: pd.DataFrame, surpr
     search.fit(dataset)
     print(search.best_params[metric])
     recommender = SurpriseRecommender(model=search)
+
+    return recommender
+
+def fit_surprise_recommendation_model(ratings: pd.DataFrame, surprise_model_cls, params: dict,
+                                                    n_iter: int = 50, metric: str = 'mae', rating_col='rating',
+                                                    user_col='user_id',
+                                                    item_col='item_id') -> SurpriseRecommender:
+    dataset = build_surprise_trainset(ratings, min_rating=min(ratings[rating_col]), max_rating=max(ratings[rating_col]),
+                                      rating_col=rating_col, user_col=user_col, item_col=item_col)
+    trainset = DatasetAutoFolds.build_full_trainset(dataset)
+    model = surprise_model_cls(**params)
+    model.fit(trainset)
+    recommender = SurpriseRecommender(model=model)
 
     return recommender
 

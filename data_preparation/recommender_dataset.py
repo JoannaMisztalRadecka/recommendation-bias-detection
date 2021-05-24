@@ -9,9 +9,6 @@ class RecommenderDataset:
     """
     Prepares dataset for recommendation model training.
     """
-    __BUCKET__LOW = 'low'
-    __BUCKET__MEDIUM = 'medium'
-    __BUCKET__HIGH = 'high'
     NAME = 'Recommendation Dataset'
     USER_ID_COL = 'user'
     ITEM_ID_COL = 'item'
@@ -22,7 +19,7 @@ class RecommenderDataset:
     MAX_RATING = 5
 
     def __init__(self, data_path: str, min_user_interactions: int = 10, min_item_interactions: int = 10,
-                 sample: int = None, n_bins: int = 5):
+                 sample: int = None, n_bins: int = 4, bucket_labels: list = None, min_feature_cnt: int = 500):
         """
         :param data_path: Path with dataset.
         """
@@ -31,10 +28,13 @@ class RecommenderDataset:
         self._item_ids = []
         self._min_user_interactions = min_user_interactions
         self._min_item_interactions = min_item_interactions
+        self._min_feature_cnt = min_feature_cnt
         self._sample = sample
         self._n_bins = n_bins
+        self._bucket_labels = bucket_labels
 
-    def get_data_splits_for_training(self, use_val_set: bool = True) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    def get_data_splits_for_training(self, use_val_set: bool = True, use_timestamp_col: str = None,
+                                     shuffle: bool = True) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
         """
         Prepares MovieLens data for training.
         :param ratings: pandas DataFrame with ratings
@@ -47,20 +47,28 @@ class RecommenderDataset:
         item_ids = {x: i for i, x in enumerate(self._item_ids)}
         ratings[self.USER_ID_COL_TRANSFORMED] = ratings[self.USER_ID_COL].map(user_ids)
         ratings[self.ITEM_ID_COL_TRANSFORMED] = ratings[self.ITEM_ID_COL].map(item_ids)
+        if use_timestamp_col is not None:
+            ratings_sorted = ratings.sort_values(use_timestamp_col)
+            train_size = round(.8 * ratings_sorted.shape[0])
+            return ratings_sorted[:train_size], ratings_sorted[train_size:]
 
-        return self._get_train_test_validation_data(ratings, use_val_set)
+        return self._get_train_test_validation_data(ratings, use_val_set, shuffle=shuffle)
 
     def get_ratings_with_metadata(self) -> pd.DataFrame:
         user_features = self._get_user_features()
         item_features = self._get_item_features()
         ratings = self._get_ratings()
         user_activity, item_popularity = self._get_activity_features(ratings)
-        # user_lof = self._get_lof_features(ratings)
         ratings_with_metadata = self._join_features(ratings, user_features, item_features,
                                                     user_activity, item_popularity, )
-        ratings_with_metadata = self._bucketize_continuous_attributes(ratings_with_metadata)
+        ratings_with_metadata = self._bucketize_continuous_attributes(ratings_with_metadata, self._bucket_labels)
         if self._sample:
             ratings_with_metadata = ratings_with_metadata.sample(self._sample)
+        for attr in self.attributes_dict:
+            popular_attr = ratings_with_metadata[attr].value_counts()[
+                ratings_with_metadata[attr].value_counts() > self._min_feature_cnt].index
+            ratings_with_metadata[attr] = ratings_with_metadata[attr].apply(
+                lambda x: x if x in popular_attr else attr + ':unpopular')
 
         return ratings_with_metadata
 
@@ -98,14 +106,13 @@ class RecommenderDataset:
     def _get_user_features(self) -> pd.DataFrame:
         pass
 
-    def _bucketize_continuous_attributes(self, ratings_with_metadata: pd.DataFrame) -> pd.DataFrame:
+    def _bucketize_continuous_attributes(self, ratings_with_metadata: pd.DataFrame,
+                                         bucket_labels: list = None) -> pd.DataFrame:
         for attr in self.attributes_continuous:
             var_name = f'{attr}_bucketized'
             ratings_with_metadata[var_name] = pd.qcut(ratings_with_metadata[attr], self._n_bins,
-                                                      duplicates='drop').astype(str)
-        #     labels=[self.__BUCKET__LOW,
-        #                                                               self.__BUCKET__MEDIUM,
-        #                                                               self.__BUCKET__HIGH],
+                                                      duplicates='drop', labels=bucket_labels, precision=0).astype(str)
+
         return ratings_with_metadata
 
     def _get_activity_features(self, ratings: pd.DataFrame):
@@ -128,21 +135,24 @@ class RecommenderDataset:
         return user_lof
 
     def _join_features(self, ratings: pd.DataFrame, user_features: pd.DataFrame, item_features: pd.DataFrame,
-                       user_activity: pd.Series, item_popularity: pd.Series,):
-        ratings_metadata = ratings.merge(user_features, on=self.USER_ID_COL)#.merge(user_lof, on=self.USER_ID_COL)
-        ratings_metadata = ratings_metadata.merge(item_features, on=self.ITEM_ID_COL)
+                       user_activity: pd.Series, item_popularity: pd.Series, ):
+        ratings_metadata = ratings.copy(deep=True)
+        if user_features is not None:
+            ratings_metadata = ratings.merge(user_features,
+                                             on=self.USER_ID_COL)
+        if item_features is not None:
+            ratings_metadata = ratings_metadata.merge(item_features, on=self.ITEM_ID_COL)
         ratings_metadata = ratings_metadata.merge(user_activity, on=self.USER_ID_COL).merge(item_popularity,
                                                                                             on=self.ITEM_ID_COL)
-        # ratings_metadata = ratings_metadata.merge(ratings[[self.USER_ID_COL, self.ITEM_ID_COL]],
-        #                                           on=[self.USER_ID_COL, self.ITEM_ID_COL])
+
         return ratings_metadata
 
     @staticmethod
-    def _get_train_test_validation_data(ratings: pd.DataFrame, use_val_set: bool = True) -> (
+    def _get_train_test_validation_data(ratings: pd.DataFrame, use_val_set: bool = True, shuffle: bool = True) -> (
             pd.DataFrame, pd.DataFrame, pd.DataFrame):
-        X_train, X_test = train_test_split(ratings, test_size=0.2, random_state=1)
+        X_train, X_test = train_test_split(ratings, test_size=0.2, random_state=1, shuffle=shuffle)
         if use_val_set:
-            X_train, X_val = train_test_split(X_train, test_size=0.25, random_state=1)
+            X_train, X_val = train_test_split(X_train, test_size=0.25, random_state=1, shuffle=shuffle)
             return X_train, X_val, X_test
         else:
             return X_train, X_test

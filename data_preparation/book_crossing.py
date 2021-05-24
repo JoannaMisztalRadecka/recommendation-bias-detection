@@ -18,12 +18,12 @@ class BookCrossingData(RecommenderDataset):
     MAX_RATING = 10
 
     def __init__(self, data_path: str, min_user_interactions: int = 10, min_item_interactions: int = 10,
-                 sample: int = None, n_bins: int = 5):
+                 sample: int = None, n_bins: int = 5, bucket_labels: list=None):
         """
         :param data_path: Path with the dataset.
         """
         super().__init__(data_path, sample=sample, min_user_interactions=min_user_interactions,
-                         min_item_interactions=min_item_interactions, n_bins=n_bins)
+                         min_item_interactions=min_item_interactions, n_bins=n_bins, bucket_labels=bucket_labels)
         self._ratings_file = os.path.join(data_path, 'BX-Book-Ratings.csv')
         self._item_file = os.path.join(data_path, 'BX-Books.csv')
         self._user_file = os.path.join(data_path, 'BX-Users.csv')
