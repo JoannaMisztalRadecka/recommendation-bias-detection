@@ -2,3 +2,5 @@ pandas
 numpy
 CHAID
 surprise
+tensorflow>=2.4.0
+keras-tuner
