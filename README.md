@@ -1,7 +1,10 @@
 # Bias Detection Tree for recommendation models
 
-This repository contains an implementation and experiments with Bias Detection Tree for recommendation models.
-The approach applies the CHAID decision tree to detect inequalities in error distribution for rating predictions.
+Most of the recommendation algorithms are tuned to optimize some global objective function. However, the distribution of error may differ dramatically among different combinations of attributes, and such algorithms may lead to propagating hidden data biases. Most approaches to fairness evaluation and disparity detection are based on analyzing a single dimension selected a-priori, such as a sensitive user attribute or a protected category of products.
+
+This repository contains an implementation and experiments with Bias Detection Tree - a model-agnostic technique to automatically detect the combinations of user and item attributes correlated with unfair treatment by the recommender.
+
+The proposed approach applies the CHAID decision tree to detect inequalities in error distribution for rating predictions.
 
 The technical details and preliminary results were presented in a workshop paper:
 
