@@ -8,7 +8,7 @@ from tensorflow.keras.callbacks import Callback
 
 from tensorflow.keras import layers
 
-from bias_detection.bias_tree import get_metric_bias_tree_for_model
+from bias_detection.metric import get_metric_bias_tree_for_model
 
 
 class RankingModel(tf.keras.Model):
