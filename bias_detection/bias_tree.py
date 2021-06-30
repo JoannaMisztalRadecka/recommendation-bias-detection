@@ -4,7 +4,6 @@ import pandas as pd
 import seaborn as sns
 from CHAID import Tree
 from matplotlib import pyplot as plt
-from sklearn.model_selection import train_test_split
 
 
 class BiasDetectionTree:
@@ -19,7 +18,7 @@ class BiasDetectionTree:
     def __init__(self, metric_col='error', metric_type=VAR_TYPE__CONTINUOUS,
                  min_child_node_size: int = 1000,
                  max_depth: int = 3,
-                 alpha: float = 0.01, split_threshold=0, dataset_name: str=''):
+                 alpha: float = 0.01, split_threshold=0, dataset_name: str = ''):
         self.metric_col: str = metric_col
         self.metric_type = metric_type
         self.min_child_node_size: int = min_child_node_size
@@ -71,7 +70,8 @@ class BiasDetectionTree:
         self.bias_tree = Tree.from_pandas_df(metric_with_metadata, attributes, self.metric_col,
                                              min_child_node_size=self.min_child_node_size,
                                              dep_variable_type=self.metric_type,
-                                             max_depth=self.max_depth, alpha_merge=self.alpha, split_threshold=self.split_threshold)
+                                             max_depth=self.max_depth, alpha_merge=self.alpha,
+                                             split_threshold=self.split_threshold)
 
     def _plot_bias_tree(self):
         tree_structure = self.bias_tree.to_tree()
@@ -113,49 +113,9 @@ class BiasDetectionTree:
         return rule_metadata
 
     def _plot_metric_nodes_distribution(self, leaf_metrics: pd.DataFrame, dist_type: str = 'kde') -> None:
-        g = sns.displot(data=leaf_metrics, x=self.metric_col, hue=self.__NODE_RULES__COL, kind=dist_type, common_norm=False)
+        g = sns.displot(data=leaf_metrics, x=self.metric_col, hue=self.__NODE_RULES__COL, kind=dist_type,
+                        common_norm=False)
         g.savefig(f"bias_distribution_{self.metric_col}-{self.dataset_name}.png", dpi=600)
         plt.show()
 
 
-def value(prediction, rating):
-    return prediction - rating
-
-
-def underestimation(prediction, rating):
-    error = rating - prediction
-    error[error < 0] = 0
-    return error
-
-
-def overestimation(prediction, rating):
-    error = prediction - rating
-    error[error < 0] = 0
-    return error
-
-
-def absolute(prediction, rating):
-    return abs(rating - prediction)
-
-
-def squared_error(prediction, rating):
-    return (rating - prediction) ** 2
-
-
-def get_metric_bias_tree_for_model(model, ratings, attributes, metric_name,
-                                   min_child_node_size=1000, alpha=0.01, split_threshold=0, max_depth=3, user_col='user_id',
-                                   item_col='item_id', rating_col='rating', plot_bias_tree: bool = True, dataset_name: str=''):
-    ratings['pred'] = model.predict(ratings[[user_col, item_col]])
-    ratings[metric_name] = eval(metric_name)(ratings[rating_col].values, ratings['pred'].values)
-    bias_detection_tree = BiasDetectionTree(min_child_node_size=min_child_node_size,
-                                            alpha=alpha, max_depth=max_depth, metric_col=metric_name, dataset_name=dataset_name, split_threshold=split_threshold)
-    bias_detection_tree.analyze_bias(attributes=attributes, metric_with_metadata=ratings, plot_bias_tree=plot_bias_tree, plot_nodes_distribution=plot_bias_tree)
-
-    return bias_detection_tree
-
-
-def evaluate_model(model, ratings: pd.DataFrame, metric_name: str, user_col='user_id',
-                   item_col='item_id', rating_col='rating') -> pd.Series:
-    ratings['pred'] = model.predict(ratings[[user_col, item_col]])
-    metric = eval(metric_name)(ratings[rating_col], ratings['pred'])
-    return metric
