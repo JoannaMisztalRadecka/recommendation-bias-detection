@@ -33,12 +33,6 @@ class MarketBiasData(RecommenderDataset):
 
         return ratings
 
-    def _get_item_features(self):
-        return None
-
-    def _get_user_features(self):
-        return None
-
 
 class MarketBiasModCloth(MarketBiasData):
     NAME = 'ModCloth'

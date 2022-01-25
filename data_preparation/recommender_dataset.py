@@ -1,11 +1,11 @@
-from abc import abstractmethod, abstractproperty
+from abc import abstractmethod, abstractproperty, ABC
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import LocalOutlierFactor
 
 
-class RecommenderDataset:
+class RecommenderDataset(ABC):
     """
     Prepares dataset for recommendation model training.
     """
@@ -98,13 +98,11 @@ class RecommenderDataset:
     def _get_ratings(self) -> pd.DataFrame:
         pass
 
-    @abstractmethod
     def _get_item_features(self) -> pd.DataFrame:
-        pass
+        return None
 
-    @abstractmethod
     def _get_user_features(self) -> pd.DataFrame:
-        pass
+        return None
 
     def _bucketize_continuous_attributes(self, ratings_with_metadata: pd.DataFrame,
                                          bucket_labels: list = None) -> pd.DataFrame:
@@ -142,8 +140,10 @@ class RecommenderDataset:
                                              on=self.USER_ID_COL)
         if item_features is not None:
             ratings_metadata = ratings_metadata.merge(item_features, on=self.ITEM_ID_COL)
-        ratings_metadata = ratings_metadata.merge(user_activity, on=self.USER_ID_COL).merge(item_popularity,
-                                                                                            on=self.ITEM_ID_COL)
+        if user_activity is not None:
+            ratings_metadata = ratings_metadata.merge(user_activity, on=self.USER_ID_COL)
+        if item_popularity is not None:
+                ratings_metadata = ratings_metadata.merge(item_popularity, on=self.ITEM_ID_COL)
 
         return ratings_metadata
 
